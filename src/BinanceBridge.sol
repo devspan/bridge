@@ -1,59 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "../src/BinanceBridge.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract BinanceBridgeTest is Test {
-    BinanceBridge public bridge;
-    address public admin = address(1);
-    address public user = address(2);
+contract BinanceBridge is ERC20, Pausable, AccessControl, ReentrancyGuard {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    function setUp() public {
-        vm.prank(admin);
-        bridge = new BinanceBridge();
+    uint256 public constant MAX_TRANSFER_AMOUNT = 1000 * 1e18; // 1000 BRUPX
+    uint256 public constant TRANSFER_COOLDOWN = 1 hours;
+    
+    mapping(address => uint256) public lastTransferTimestamp;
+
+    event Mint(address indexed to, uint256 amount, uint256 timestamp);
+    event Burn(address indexed from, uint256 amount, uint256 timestamp);
+
+    constructor() ERC20("Bridged RUPX", "BRUPX") {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
+        _grantRole(OPERATOR_ROLE, msg.sender);
     }
 
-    function testMint() public {
-        uint256 amount = 100 ether;
+    function mint(address to, uint256 amount) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
+        require(amount <= MAX_TRANSFER_AMOUNT, "Amount exceeds maximum transfer limit");
         
-        vm.prank(admin);
-        bridge.mint(user, amount);
-
-        assertEq(bridge.balanceOf(user), amount);
-    }
-
-    function testBurn() public {
-        uint256 amount = 100 ether;
+        _mint(to, amount);
         
-        vm.prank(admin);
-        bridge.mint(user, amount);
-
-        vm.prank(user);
-        vm.warp(block.timestamp + 1 hours);
-        bridge.burn(amount);
-
-        assertEq(bridge.balanceOf(user), 0);
+        emit Mint(to, amount, block.timestamp);
     }
 
-    function testPause() public {
-        vm.prank(admin);
-        bridge.pause();
-
-        vm.expectRevert("Pausable: paused");
-        vm.prank(admin);
-        bridge.mint(user, 1 ether);
-    }
-
-    function testUnpause() public {
-        vm.startPrank(admin);
-        bridge.pause();
-        bridge.unpause();
-        vm.stopPrank();
-
-        vm.prank(admin);
-        bridge.mint(user, 1 ether);
+    function burn(uint256 amount) external whenNotPaused nonReentrant {
+        require(amount <= MAX_TRANSFER_AMOUNT, "Amount exceeds maximum transfer limit");
+        require(block.timestamp - lastTransferTimestamp[msg.sender] >= TRANSFER_COOLDOWN, "Transfer cooldown not met");
         
-        assertEq(bridge.balanceOf(user), 1 ether);
+        lastTransferTimestamp[msg.sender] = block.timestamp;
+        
+        _burn(msg.sender, amount);
+        
+        emit Burn(msg.sender, amount, block.timestamp);
+    }
+
+    function pause() external onlyRole(ADMIN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(ADMIN_ROLE) {
+        _unpause();
     }
 }

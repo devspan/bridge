@@ -20,8 +20,14 @@ contract RupayaBridgeTest is Test {
         
         vm.prank(user);
         bridge.deposit{value: amount}();
+        
+        // Move time forward to bypass cooldown
+        vm.warp(block.timestamp + 1 hours);
+        
+        vm.prank(user);
+        bridge.deposit{value: amount}();
 
-        assertEq(address(bridge).balance, amount);
+        assertEq(address(bridge).balance, 2 * amount);
     }
 
     function testWithdraw() public {
@@ -41,9 +47,10 @@ contract RupayaBridgeTest is Test {
         vm.prank(admin);
         bridge.pause();
 
-        vm.expectRevert("Pausable: paused");
-        vm.prank(user);
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("Pausable: paused"))));
         bridge.deposit{value: 1 ether}();
+        vm.stopPrank();
     }
 
     function testUnpause() public {
@@ -52,6 +59,9 @@ contract RupayaBridgeTest is Test {
         bridge.unpause();
         vm.stopPrank();
 
+        vm.warp(block.timestamp + 1 hours); // Advance the block timestamp to bypass the cooldown
+
+        vm.deal(user, 1 ether);
         vm.prank(user);
         bridge.deposit{value: 1 ether}();
         

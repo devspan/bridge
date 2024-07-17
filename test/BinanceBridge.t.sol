@@ -29,6 +29,8 @@ contract BinanceBridgeTest is Test {
         vm.prank(admin);
         bridge.mint(user, amount);
 
+        vm.warp(block.timestamp + 1 hours);
+
         vm.prank(user);
         bridge.burn(amount);
 
@@ -39,9 +41,10 @@ contract BinanceBridgeTest is Test {
         vm.prank(admin);
         bridge.pause();
 
-        vm.expectRevert("Pausable: paused");
-        vm.prank(admin);
+        vm.startPrank(admin);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("Pausable: paused"))));
         bridge.mint(user, 1 ether);
+        vm.stopPrank();
     }
 
     function testUnpause() public {
