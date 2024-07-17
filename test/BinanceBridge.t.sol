@@ -30,7 +30,6 @@ contract BinanceBridgeTest is Test {
         bridge.mint(user, amount);
 
         vm.prank(user);
-        vm.warp(block.timestamp + 1 hours);
         bridge.burn(amount);
 
         assertEq(bridge.balanceOf(user), 0);

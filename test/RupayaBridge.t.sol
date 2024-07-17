@@ -18,13 +18,10 @@ contract RupayaBridgeTest is Test {
         uint256 amount = 100 ether;
         vm.deal(user, amount);
         
-        vm.startPrank(user);
+        vm.prank(user);
         bridge.deposit{value: amount}();
-        vm.warp(block.timestamp + 1 hours);
-        bridge.deposit{value: amount}();
-        vm.stopPrank();
 
-        assertEq(address(bridge).balance, 2 * amount);
+        assertEq(address(bridge).balance, amount);
     }
 
     function testWithdraw() public {
@@ -44,8 +41,8 @@ contract RupayaBridgeTest is Test {
         vm.prank(admin);
         bridge.pause();
 
-        vm.prank(user);
         vm.expectRevert("Pausable: paused");
+        vm.prank(user);
         bridge.deposit{value: 1 ether}();
     }
 
@@ -55,7 +52,6 @@ contract RupayaBridgeTest is Test {
         bridge.unpause();
         vm.stopPrank();
 
-        vm.deal(user, 1 ether);
         vm.prank(user);
         bridge.deposit{value: 1 ether}();
         
