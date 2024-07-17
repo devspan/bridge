@@ -12,3 +12,9 @@ docs/
 
 # Dotenv file
 .env
+
+
+# Bridgebot
+bridge-bot/node_modules
+.env
+broadcast
