@@ -1,0 +1,16 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "api/bridge-bot.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/bridge-bot",
+        "dest": "/api/bridge-bot.js"
+      }
+    ]
+  }
+  
