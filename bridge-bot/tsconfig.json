@@ -1,16 +1,16 @@
 {
-    "compilerOptions": {
-      "target": "ES2022",
-      "module": "ESNext",
-      "moduleResolution": "NodeNext",
-      "esModuleInterop": true,
-      "strict": true,
-      "outDir": "./dist",
-      "rootDir": "./src"
-    },
-    "ts-node": {
-      "esm": true,
-      "experimentalSpecifierResolution": "node"
-    },
-    "include": ["src/**/*"]
-  }
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
+  "include": ["src/**/*"]
+}
