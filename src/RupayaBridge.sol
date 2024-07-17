@@ -25,7 +25,7 @@ contract RupayaBridge is Pausable, AccessControl, ReentrancyGuard {
 
     function deposit() external payable whenNotPaused nonReentrant {
         require(msg.value <= MAX_TRANSFER_AMOUNT, "Amount exceeds maximum transfer limit");
-        require(block.timestamp - lastTransferTimestamp[msg.sender] >= TRANSFER_COOLDOWN, "Transfer cooldown not met");
+        require(lastTransferTimestamp[msg.sender] == 0 || block.timestamp - lastTransferTimestamp[msg.sender] >= TRANSFER_COOLDOWN, "Transfer cooldown not met");
         
         lastTransferTimestamp[msg.sender] = block.timestamp;
         

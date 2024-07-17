@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/BinanceBridge.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract BinanceBridgeTest is Test {
     BinanceBridge public bridge;
@@ -10,13 +11,14 @@ contract BinanceBridgeTest is Test {
     address public user = address(2);
 
     function setUp() public {
-        vm.prank(admin);
+        vm.startPrank(admin);
         bridge = new BinanceBridge();
+        vm.stopPrank();
     }
 
     function testMint() public {
         uint256 amount = 100 ether;
-        
+
         vm.prank(admin);
         bridge.mint(user, amount);
 
@@ -25,11 +27,12 @@ contract BinanceBridgeTest is Test {
 
     function testBurn() public {
         uint256 amount = 100 ether;
-        
+
         vm.prank(admin);
         bridge.mint(user, amount);
 
-        vm.warp(block.timestamp + 1 hours);
+        // Warp time to bypass the transfer cooldown
+        vm.warp(block.timestamp + bridge.TRANSFER_COOLDOWN());
 
         vm.prank(user);
         bridge.burn(amount);
@@ -42,7 +45,7 @@ contract BinanceBridgeTest is Test {
         bridge.pause();
 
         vm.startPrank(admin);
-        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("Pausable: paused"))));
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         bridge.mint(user, 1 ether);
         vm.stopPrank();
     }
@@ -55,7 +58,7 @@ contract BinanceBridgeTest is Test {
 
         vm.prank(admin);
         bridge.mint(user, 1 ether);
-        
+
         assertEq(bridge.balanceOf(user), 1 ether);
     }
 }
