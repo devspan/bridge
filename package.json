@@ -1,0 +1,17 @@
+{
+    "name": "rupaya-bridge-project",
+    "version": "1.0.0",
+    "private": true,
+    "workspaces": [
+      "frontend",
+      "bridge-bot"
+    ],
+    "scripts": {
+      "start:bot": "yarn workspace bridge-bot start",
+      "start:frontend": "yarn workspace frontend start",
+      "dev": "concurrently \"yarn start:bot\" \"yarn start:frontend\""
+    },
+    "devDependencies": {
+      "concurrently": "^8.2.2"
+    }
+  }

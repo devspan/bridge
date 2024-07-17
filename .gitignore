@@ -16,5 +16,7 @@ docs/
 
 # Bridgebot
 bridge-bot/node_modules
+frontend/node_modules
 .env
 broadcast
+node_modules

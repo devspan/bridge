@@ -26,13 +26,16 @@ const wallet = new ethers.Wallet(PRIVATE_KEY, rupayaProvider);
 
 const rupayaBridgeAbi = [
     "event Deposit(address indexed from, uint256 amount, uint256 timestamp)",
+    "event Withdraw(address indexed to, uint256 amount, uint256 timestamp)",
     "function withdraw(address to, uint256 amount)"
 ];
 
 const binanceBridgeAbi = [
     "event Burn(address indexed from, uint256 amount, uint256 timestamp)",
+    "event Mint(address indexed to, uint256 amount, uint256 timestamp)",
     "function mint(address to, uint256 amount)"
 ];
+
 
 const rupayaBridge = new ethers.Contract(RUPAYA_BRIDGE_ADDRESS, rupayaBridgeAbi, wallet);
 const binanceBridge = new ethers.Contract(BINANCE_BRIDGE_ADDRESS, binanceBridgeAbi, wallet.connect(binanceProvider));
