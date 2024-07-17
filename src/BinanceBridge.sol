@@ -34,6 +34,7 @@ contract BinanceBridge is ERC20, Pausable, AccessControl, ReentrancyGuard {
 
     function burn(uint256 amount) external whenNotPaused nonReentrant {
         require(amount <= MAX_TRANSFER_AMOUNT, "Amount exceeds maximum transfer limit");
+        require(balanceOf(msg.sender) >= amount, "ERC20: burn amount exceeds balance");
         require(block.timestamp - lastTransferTimestamp[msg.sender] >= TRANSFER_COOLDOWN, "Transfer cooldown not met");
         
         lastTransferTimestamp[msg.sender] = block.timestamp;
