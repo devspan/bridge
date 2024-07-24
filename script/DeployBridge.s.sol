@@ -8,24 +8,17 @@ import "../src/BinanceBridge.sol";
 contract DeployBridge is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        string memory rupayaRpcUrl = vm.envString("RUPAYA_RPC_URL");
-        string memory binanceRpcUrl = vm.envString("BINANCE_TESTNET_RPC_URL");
-        
-        console.log("RUPAYA_RPC_URL:", rupayaRpcUrl);
-        console.log("BINANCE_TESTNET_RPC_URL:", binanceRpcUrl);
-
-        // Deploy RupayaBridge
-        vm.createSelectFork(rupayaRpcUrl);
         vm.startBroadcast(deployerPrivateKey);
-        RupayaBridge rupayaBridge = new RupayaBridge();
-        vm.stopBroadcast();
+
+        uint256 initialMaxTransferAmount = 1000 ether; // Set your desired initial max transfer amount
+        uint256 initialTransferCooldown = 1 hours; // Set your desired initial transfer cooldown
+
+        RupayaBridge rupayaBridge = new RupayaBridge(initialMaxTransferAmount, initialTransferCooldown);
         console.log("RupayaBridge deployed at:", address(rupayaBridge));
 
-        // Deploy BinanceBridge
-        vm.createSelectFork(binanceRpcUrl);
-        vm.startBroadcast(deployerPrivateKey);
-        BinanceBridge binanceBridge = new BinanceBridge();
-        vm.stopBroadcast();
+        BinanceBridge binanceBridge = new BinanceBridge(initialMaxTransferAmount, initialTransferCooldown);
         console.log("BinanceBridge deployed at:", address(binanceBridge));
+
+        vm.stopBroadcast();
     }
 }

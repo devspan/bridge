@@ -20,3 +20,7 @@ frontend/node_modules
 .env
 broadcast
 node_modules
+coverage_report
+test/~BinanceBridge.t.sol
+test/~BridgeIntegration.sol
+test/~RupayaBridge.t.sol

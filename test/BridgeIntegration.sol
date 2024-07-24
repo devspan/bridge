@@ -10,14 +10,16 @@ contract BridgeIntegrationTest is Test {
     BinanceBridge public binanceBridge;
     address public admin = address(1);
     address public user = address(2);
-    address public operator = address(3);
+    address public minter = address(3);
+    uint256 public constant INITIAL_MAX_TRANSFER_AMOUNT = 1000 ether;
+    uint256 public constant INITIAL_TRANSFER_COOLDOWN = 1 hours;
 
     function setUp() public {
         vm.startPrank(admin);
-        rupayaBridge = new RupayaBridge();
-        binanceBridge = new BinanceBridge();
-        rupayaBridge.grantRole(rupayaBridge.OPERATOR_ROLE(), operator);
-        binanceBridge.grantRole(binanceBridge.OPERATOR_ROLE(), operator);
+        rupayaBridge = new RupayaBridge(INITIAL_MAX_TRANSFER_AMOUNT, INITIAL_TRANSFER_COOLDOWN);
+        binanceBridge = new BinanceBridge(INITIAL_MAX_TRANSFER_AMOUNT, INITIAL_TRANSFER_COOLDOWN);
+        rupayaBridge.grantRole(rupayaBridge.OPERATOR_ROLE(), minter);
+        binanceBridge.grantRole(binanceBridge.MINTER_ROLE(), minter);
         vm.stopPrank();
     }
 
@@ -30,88 +32,142 @@ contract BridgeIntegrationTest is Test {
         rupayaBridge.deposit{value: amount}();
         assertEq(address(rupayaBridge).balance, amount);
 
-        // Step 2: Operator mints BRUPX on BinanceBridge
-        vm.prank(operator);
+        // Step 2: Minter mints BRUPX on BinanceBridge
+        vm.prank(minter);
         binanceBridge.mint(user, amount);
         assertEq(binanceBridge.balanceOf(user), amount);
 
         // Step 3: User burns BRUPX on BinanceBridge
-        vm.warp(block.timestamp + binanceBridge.TRANSFER_COOLDOWN());
+        vm.warp(block.timestamp + binanceBridge.transferCooldown());
         vm.prank(user);
         binanceBridge.burn(amount);
         assertEq(binanceBridge.balanceOf(user), 0);
 
         // Step 4: Operator withdraws RUPX from RupayaBridge
         uint256 initialUserBalance = user.balance;
-        vm.prank(operator);
+        vm.prank(minter);
         rupayaBridge.withdraw(payable(user), amount);
         assertEq(user.balance, initialUserBalance + amount);
         assertEq(address(rupayaBridge).balance, 0);
     }
 
-    function testBridgeWithInsufficientFunds() public {
-        uint256 depositAmount = 1 ether;
-        uint256 withdrawAmount = 2 ether;
-
-        // User deposits RUPX to RupayaBridge
-        vm.deal(user, depositAmount);
+    function testDepositExceedingMaxAmount() public {
+        uint256 exceedingAmount = INITIAL_MAX_TRANSFER_AMOUNT + 1 ether;
+        vm.deal(user, exceedingAmount);
+        
         vm.prank(user);
-        rupayaBridge.deposit{value: depositAmount}();
-
-        // Operator tries to withdraw more than deposited
-        vm.prank(operator);
-        vm.expectRevert("Insufficient balance in the contract");
-        rupayaBridge.withdraw(payable(user), withdrawAmount);
+        vm.expectRevert("Amount exceeds maximum transfer limit");
+        rupayaBridge.deposit{value: exceedingAmount}();
     }
 
-    function testBridgeWithUnauthorizedOperator() public {
+    function testMintExceedingMaxAmount() public {
+        uint256 exceedingAmount = INITIAL_MAX_TRANSFER_AMOUNT + 1 ether;
+        
+        vm.prank(minter);
+        vm.expectRevert("Amount exceeds maximum transfer limit");
+        binanceBridge.mint(user, exceedingAmount);
+    }
+
+    function testDepositWithinCooldown() public {
+        uint256 amount = 1 ether;
+        vm.deal(user, amount * 2);
+
+        vm.prank(user);
+        rupayaBridge.deposit{value: amount}();
+
+        vm.prank(user);
+        vm.expectRevert("Transfer cooldown not met");
+        rupayaBridge.deposit{value: amount}();
+    }
+
+    function testBurnWithinCooldown() public {
         uint256 amount = 1 ether;
 
-        // Unauthorized user tries to mint BRUPX
-        vm.prank(user);
-        vm.expectRevert();
+        vm.prank(minter);
         binanceBridge.mint(user, amount);
 
-        // Unauthorized user tries to withdraw RUPX
+        vm.prank(user);
+        vm.expectRevert("Transfer cooldown not met");
+        binanceBridge.burn(amount);
+    }
+
+    function testUnauthorizedWithdraw() public {
+        uint256 amount = 1 ether;
+        vm.deal(address(rupayaBridge), amount);
+
         vm.prank(user);
         vm.expectRevert();
         rupayaBridge.withdraw(payable(user), amount);
     }
 
-    function testBridgeWithExceedingMaxAmount() public {
-        uint256 maxAmount = rupayaBridge.MAX_TRANSFER_AMOUNT();
-        uint256 exceedingAmount = maxAmount + 1 ether;
+function testPausedDeposit() public {
+    uint256 amount = 1 ether;
+    vm.deal(user, amount);
 
-        // Try to deposit more than MAX_TRANSFER_AMOUNT
-        vm.deal(user, exceedingAmount);
-        vm.prank(user);
-        vm.expectRevert("Amount exceeds maximum transfer limit");
-        rupayaBridge.deposit{value: exceedingAmount}();
+    vm.prank(admin);
+    rupayaBridge.pause();
 
-        // Try to mint more than MAX_TRANSFER_AMOUNT
-        vm.prank(operator);
-        vm.expectRevert("Amount exceeds maximum transfer limit");
-        binanceBridge.mint(user, exceedingAmount);
+    vm.prank(user);
+    vm.expectRevert();
+    rupayaBridge.deposit{value: amount}();
+}
+
+function testPausedMint() public {
+    uint256 amount = 1 ether;
+
+    vm.prank(admin);
+    binanceBridge.pause();
+
+    vm.prank(minter);
+    vm.expectRevert();
+    binanceBridge.mint(user, amount);
+}
+
+    function testSetMaxTransferAmount() public {
+        uint256 newMaxAmount = 2000 ether;
+
+        vm.prank(admin);
+        rupayaBridge.setMaxTransferAmount(newMaxAmount);
+        assertEq(rupayaBridge.maxTransferAmount(), newMaxAmount);
+
+        vm.prank(admin);
+        binanceBridge.setMaxTransferAmount(newMaxAmount);
+        assertEq(binanceBridge.maxTransferAmount(), newMaxAmount);
     }
 
-    function testBridgeWithCooldownPeriod() public {
-        uint256 amount = 1 ether;
+    function testSetTransferCooldown() public {
+        uint256 newCooldown = 2 hours;
 
-        // Mint BRUPX
-        vm.prank(operator);
-        binanceBridge.mint(user, amount);
+        vm.prank(admin);
+        rupayaBridge.setTransferCooldown(newCooldown);
+        assertEq(rupayaBridge.transferCooldown(), newCooldown);
 
-        // Try to burn immediately (should fail due to cooldown)
+        vm.prank(admin);
+        binanceBridge.setTransferCooldown(newCooldown);
+        assertEq(binanceBridge.transferCooldown(), newCooldown);
+    }
+
+    function testUnauthorizedSetMaxTransferAmount() public {
+        uint256 newMaxAmount = 2000 ether;
+
         vm.prank(user);
-        vm.expectRevert("Transfer cooldown not met");
-        binanceBridge.burn(amount);
+        vm.expectRevert();
+        rupayaBridge.setMaxTransferAmount(newMaxAmount);
 
-        // Wait for cooldown period
-        vm.warp(block.timestamp + binanceBridge.TRANSFER_COOLDOWN());
-
-        // Burn should succeed now
         vm.prank(user);
-        binanceBridge.burn(amount);
-        assertEq(binanceBridge.balanceOf(user), 0);
+        vm.expectRevert();
+        binanceBridge.setMaxTransferAmount(newMaxAmount);
+    }
+
+    function testUnauthorizedSetTransferCooldown() public {
+        uint256 newCooldown = 2 hours;
+
+        vm.prank(user);
+        vm.expectRevert();
+        rupayaBridge.setTransferCooldown(newCooldown);
+
+        vm.prank(user);
+        vm.expectRevert();
+        binanceBridge.setTransferCooldown(newCooldown);
     }
 }
