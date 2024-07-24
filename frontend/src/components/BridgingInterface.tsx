@@ -15,9 +15,16 @@ import {
   useToast,
   Icon,
   Flex,
-  useColorModeValue
+  useColorModeValue,
+  Heading,
+  Alert,
+  AlertIcon,
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
+  Spacer,
 } from "@chakra-ui/react";
-import { FaExchangeAlt } from 'react-icons/fa';
+import { FaExchangeAlt, FaTrash } from 'react-icons/fa';
 import { 
   rupayaBridge, 
   binanceBridge, 
@@ -34,13 +41,18 @@ interface BridgeTransaction {
   status: string;
 }
 
-const BridgingInterface: React.FC = () => {
+interface BridgingInterfaceProps {
+  connectedAddress: string;
+}
+
+const BridgingInterface: React.FC<BridgingInterfaceProps> = ({ connectedAddress }) => {
   const [sourceChain, setSourceChain] = useState('');
   const [destinationChain, setDestinationChain] = useState('');
   const [amount, setAmount] = useState('');
   const [transactionStatus, setTransactionStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [transactions, setTransactions] = useState<BridgeTransaction[]>([]);
+  const [formErrors, setFormErrors] = useState({ sourceChain: '', destinationChain: '', amount: '' });
   const toast = useToast();
 
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -54,7 +66,34 @@ const BridgingInterface: React.FC = () => {
     }
   }, []);
 
+  const validateForm = () => {
+    const errors = { sourceChain: '', destinationChain: '', amount: '' };
+    let isValid = true;
+
+    if (!sourceChain) {
+      errors.sourceChain = 'Source chain is required';
+      isValid = false;
+    }
+    if (!destinationChain) {
+      errors.destinationChain = 'Destination chain is required';
+      isValid = false;
+    }
+    if (sourceChain === destinationChain) {
+      errors.destinationChain = 'Source and destination chains must be different';
+      isValid = false;
+    }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      errors.amount = 'Please enter a valid amount';
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  };
+
   const handleSubmit = async () => {
+    if (!validateForm()) return;
+
     try {
       setIsLoading(true);
       setTransactionStatus('Processing...');
@@ -114,37 +153,65 @@ const BridgingInterface: React.FC = () => {
     localStorage.setItem('bridgeTransactions', JSON.stringify(updatedTransactions));
   };
 
+  const clearHistory = () => {
+    setTransactions([]);
+    localStorage.removeItem('bridgeTransactions');
+    toast({
+      title: "Transaction history cleared",
+      status: "info",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
   return (
     <Box as="section" width="full" p={8} bg={bgColor} borderRadius="lg" boxShadow="xl" borderWidth={1} borderColor={borderColor}>
       <VStack spacing={6} align="stretch">
+        <Heading as="h1" size="xl" textAlign="center" mb={4}>
+          Rupaya Bridge
+        </Heading>
+        <Text textAlign="center" mb={6}>
+          Seamlessly transfer your RUPX tokens between Rupaya and Binance Smart Chain networks.
+        </Text>
+        <Text>Connected Wallet: {connectedAddress}</Text>
         <Flex direction={["column", "row"]} gap={4}>
-          <Select 
-            placeholder="Select source chain" 
-            value={sourceChain} 
-            onChange={(e) => setSourceChain(e.target.value)}
-            variant="filled"
-            flex={1}
-          >
-            <option value="rupaya">Rupaya</option>
-            <option value="bsc">Binance Smart Chain</option>
-          </Select>
-          <Select 
-            placeholder="Select destination chain" 
-            value={destinationChain} 
-            onChange={(e) => setDestinationChain(e.target.value)}
-            variant="filled"
-            flex={1}
-          >
-            <option value="rupaya">Rupaya</option>
-            <option value="bsc">Binance Smart Chain</option>
-          </Select>
+          <FormControl isInvalid={!!formErrors.sourceChain}>
+            <FormLabel>Source Chain</FormLabel>
+            <Select 
+              placeholder="Select source chain" 
+              value={sourceChain} 
+              onChange={(e) => setSourceChain(e.target.value)}
+              variant="filled"
+            >
+              <option value="rupaya">Rupaya</option>
+              <option value="bsc">Binance Smart Chain</option>
+            </Select>
+            <FormErrorMessage>{formErrors.sourceChain}</FormErrorMessage>
+          </FormControl>
+          <FormControl isInvalid={!!formErrors.destinationChain}>
+            <FormLabel>Destination Chain</FormLabel>
+            <Select 
+              placeholder="Select destination chain" 
+              value={destinationChain} 
+              onChange={(e) => setDestinationChain(e.target.value)}
+              variant="filled"
+            >
+              <option value="rupaya">Rupaya</option>
+              <option value="bsc">Binance Smart Chain</option>
+            </Select>
+            <FormErrorMessage>{formErrors.destinationChain}</FormErrorMessage>
+          </FormControl>
         </Flex>
-        <Input 
-          placeholder="Enter amount" 
-          value={amount} 
-          onChange={(e) => setAmount(e.target.value)} 
-          variant="filled"
-        />
+        <FormControl isInvalid={!!formErrors.amount}>
+          <FormLabel>Amount</FormLabel>
+          <Input 
+            placeholder="Enter amount" 
+            value={amount} 
+            onChange={(e) => setAmount(e.target.value)} 
+            variant="filled"
+          />
+          <FormErrorMessage>{formErrors.amount}</FormErrorMessage>
+        </FormControl>
         <Button 
           colorScheme="brand" 
           onClick={handleSubmit} 
@@ -155,8 +222,19 @@ const BridgingInterface: React.FC = () => {
         >
           Bridge Tokens
         </Button>
-        <Text fontSize="lg" fontWeight="bold">Status: {transactionStatus}</Text>
+        {transactionStatus && (
+          <Alert status={transactionStatus === 'Completed' ? 'success' : transactionStatus === 'Failed' ? 'error' : 'info'}>
+            <AlertIcon />
+            Status: {transactionStatus}
+          </Alert>
+        )}
         <Box overflowX="auto">
+          <Flex justify="space-between" align="center" mb={4}>
+            <Heading as="h2" size="md">Transaction History</Heading>
+            <Button leftIcon={<Icon as={FaTrash} />} onClick={clearHistory} size="sm" variant="outline">
+              Clear History
+            </Button>
+          </Flex>
           <Table variant="simple">
             <Thead>
               <Tr>

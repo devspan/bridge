@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
     "strict": true,
-    "outDir": "./public",
+    "outDir": "./dist",
     "rootDir": "./src"
   },
   "ts-node": {

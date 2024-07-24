@@ -9,7 +9,6 @@ const IntroductionSection: React.FC = () => {
   return (
     <Box as="section" width="full" p={8} bg={bgColor} borderRadius="lg" mb={8} boxShadow="xl" borderWidth={1} borderColor={borderColor}>
       <VStack spacing={6} align="start">
-        <Heading as="h2" size="2xl" color={headingColor}>Welcome to Rupaya Bridge</Heading>
         <Text fontSize="lg">
           Rupaya Bridge allows you to seamlessly transfer your RUPX tokens between Rupaya and Binance Smart Chain networks.
         </Text>
