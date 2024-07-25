@@ -30,7 +30,10 @@ import {
   binanceBridge, 
   getContractWithSigner, 
   checkNetwork,
-  parseEther
+  parseEther,
+  formatEther,
+  RUPAYA_RPC_URL,
+  BINANCE_TESTNET_RPC_URL
 } from '../utils/ethers';
 
 interface BridgeTransaction {
@@ -53,6 +56,8 @@ const BridgingInterface: React.FC<BridgingInterfaceProps> = ({ connectedAddress 
   const [isLoading, setIsLoading] = useState(false);
   const [transactions, setTransactions] = useState<BridgeTransaction[]>([]);
   const [formErrors, setFormErrors] = useState({ sourceChain: '', destinationChain: '', amount: '' });
+  const [maxTransferAmount, setMaxTransferAmount] = useState('');
+  const [transferCooldown, setTransferCooldown] = useState('');
   const toast = useToast();
 
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -65,6 +70,48 @@ const BridgingInterface: React.FC<BridgingInterfaceProps> = ({ connectedAddress 
       setTransactions(JSON.parse(storedTransactions));
     }
   }, []);
+
+  useEffect(() => {
+    if (sourceChain) {
+      updateBridgeInfo();
+    }
+  }, [sourceChain]);
+
+  const updateBridgeInfo = async () => {
+    try {
+      const contract = sourceChain === 'rupaya' ? 
+        await getContractWithSigner(rupayaBridge) : 
+        await getContractWithSigner(binanceBridge);
+
+      console.log("Current chain:", sourceChain);
+      console.log("Contract address:", await contract.getAddress());
+      console.log("RPC URL:", sourceChain === 'rupaya' ? RUPAYA_RPC_URL : BINANCE_TESTNET_RPC_URL);
+
+      let maxAmount, cooldown;
+
+      try {
+        maxAmount = await contract.maxTransferAmount();
+        console.log("Raw maxAmount:", maxAmount);
+        setMaxTransferAmount(formatEther(maxAmount));
+      } catch (error) {
+        console.error("Error fetching maxTransferAmount:", error);
+        setMaxTransferAmount("Error fetching");
+      }
+
+      try {
+        cooldown = await contract.transferCooldown();
+        console.log("Raw cooldown:", cooldown);
+        setTransferCooldown(cooldown.toString());
+      } catch (error) {
+        console.error("Error fetching transferCooldown:", error);
+        setTransferCooldown("Error fetching");
+      }
+    } catch (error) {
+      console.error("Error fetching bridge info:", error);
+      setMaxTransferAmount("Error");
+      setTransferCooldown("Error");
+    }
+  };
 
   const validateForm = () => {
     const errors = { sourceChain: '', destinationChain: '', amount: '' };
@@ -84,6 +131,10 @@ const BridgingInterface: React.FC<BridgingInterfaceProps> = ({ connectedAddress 
     }
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       errors.amount = 'Please enter a valid amount';
+      isValid = false;
+    }
+    if (Number(amount) > Number(maxTransferAmount)) {
+      errors.amount = `Amount exceeds maximum transfer limit of ${maxTransferAmount} RUPX`;
       isValid = false;
     }
 
@@ -174,6 +225,8 @@ const BridgingInterface: React.FC<BridgingInterfaceProps> = ({ connectedAddress 
           Seamlessly transfer your RUPX tokens between Rupaya and Binance Smart Chain networks.
         </Text>
         <Text>Connected Wallet: {connectedAddress}</Text>
+        <Text>Max Transfer Amount: {maxTransferAmount} RUPX</Text>
+        <Text>Transfer Cooldown: {transferCooldown} seconds</Text>
         <Flex direction={["column", "row"]} gap={4}>
           <FormControl isInvalid={!!formErrors.sourceChain}>
             <FormLabel>Source Chain</FormLabel>

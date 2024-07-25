@@ -14,6 +14,11 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const RUPAYA_BRIDGE_ADDRESS = process.env.RUPAYA_BRIDGE_ADDRESS;
 const BINANCE_BRIDGE_ADDRESS = process.env.BINANCE_BRIDGE_ADDRESS;
 
+if (!RUPAYA_RPC_URL || !BINANCE_RPC_URL || !PRIVATE_KEY || !RUPAYA_BRIDGE_ADDRESS || !BINANCE_BRIDGE_ADDRESS) {
+    console.error("Missing environment variables. Please check your .env file.");
+    process.exit(1);
+}
+
 const rupayaProvider = new ethers.JsonRpcProvider(RUPAYA_RPC_URL);
 const binanceProvider = new ethers.JsonRpcProvider(BINANCE_RPC_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, rupayaProvider);
@@ -21,46 +26,56 @@ const wallet = new ethers.Wallet(PRIVATE_KEY, rupayaProvider);
 const rupayaBridgeAbi = [
     "event Deposit(address indexed from, uint256 amount, uint256 timestamp)",
     "event Withdraw(address indexed to, uint256 amount, uint256 timestamp)",
-    "function withdraw(address to, uint256 amount)"
+    "function withdraw(address payable to, uint256 amount)",
+    "function setMaxTransferAmount(uint256 newAmount)",
+    "function setTransferCooldown(uint256 newCooldown)",
+    "function maxTransferAmount() view returns (uint256)",
+    "function transferCooldown() view returns (uint256)"
 ];
 
 const binanceBridgeAbi = [
     "event Burn(address indexed from, uint256 amount, uint256 timestamp)",
     "event Mint(address indexed to, uint256 amount, uint256 timestamp)",
-    "function mint(address to, uint256 amount)"
+    "function mint(address to, uint256 amount)",
+    "function setMaxTransferAmount(uint256 newAmount)",
+    "function setTransferCooldown(uint256 newCooldown)",
+    "function maxTransferAmount() view returns (uint256)",
+    "function transferCooldown() view returns (uint256)"
 ];
 
 const rupayaBridge = new ethers.Contract(RUPAYA_BRIDGE_ADDRESS, rupayaBridgeAbi, wallet);
 const binanceBridge = new ethers.Contract(BINANCE_BRIDGE_ADDRESS, binanceBridgeAbi, wallet.connect(binanceProvider));
 
-rupayaBridge.on("Deposit", async (from, amount, timestamp) => {
-    console.log(`Deposit detected on Rupaya: ${from} deposited ${amount.toString()} RUPX at ${new Date(timestamp * 1000).toISOString()}`);
+async function setupEventListeners() {
     try {
-        const tx = await binanceBridge.mint(from, amount);
-        await tx.wait();
-        console.log(`BRUPX minted on Binance: ${from} received ${amount.toString()} BRUPX`);
+        rupayaBridge.on("Deposit", async (from, amount, timestamp) => {
+            console.log(`Deposit detected on Rupaya: ${from} deposited ${ethers.formatEther(amount)} RUPX at ${new Date(Number(timestamp) * 1000).toISOString()}`);
+            try {
+                const tx = await binanceBridge.mint(from, amount);
+                await tx.wait();
+                console.log(`BRUPX minted on Binance: ${from} received ${ethers.formatEther(amount)} BRUPX`);
+            } catch (error) {
+                console.error("Error minting BRUPX on Binance:", error);
+            }
+        });
+
+        binanceBridge.on("Burn", async (from, amount, timestamp) => {
+            console.log(`Burn detected on Binance: ${from} burned ${ethers.formatEther(amount)} BRUPX at ${new Date(Number(timestamp) * 1000).toISOString()}`);
+            try {
+                const tx = await rupayaBridge.withdraw(from, amount);
+                await tx.wait();
+                console.log(`RUPX released on Rupaya: ${from} received ${ethers.formatEther(amount)} RUPX`);
+            } catch (error) {
+                console.error("Error releasing RUPX on Rupaya:", error);
+            }
+        });
+
+        console.log("Bridge bot is running...");
     } catch (error) {
-        console.error("Error minting BRUPX on Binance:", error);
+        console.error("Error setting up event listeners:", error);
+        console.log("Retrying in 5 seconds...");
+        setTimeout(setupEventListeners, 5000);
     }
-});
+}
 
-rupayaBridge.on("Withdraw", async (to, amount, timestamp) => {
-    console.log(`Withdraw detected on Rupaya: ${to} withdrew ${amount.toString()} RUPX at ${new Date(timestamp * 1000).toISOString()}`);
-});
-
-binanceBridge.on("Burn", async (from, amount, timestamp) => {
-    console.log(`Burn detected on Binance: ${from} burned ${amount.toString()} BRUPX at ${new Date(timestamp * 1000).toISOString()}`);
-    try {
-        const tx = await rupayaBridge.withdraw(from, amount);
-        await tx.wait();
-        console.log(`RUPX released on Rupaya: ${from} received ${amount.toString()} RUPX`);
-    } catch (error) {
-        console.error("Error releasing RUPX on Rupaya:", error);
-    }
-});
-
-binanceBridge.on("Mint", async (to, amount, timestamp) => {
-    console.log(`Mint detected on Binance: ${to} minted ${amount.toString()} BRUPX at ${new Date(timestamp * 1000).toISOString()}`);
-});
-
-console.log("Bridge bot is running...");
+setupEventListeners();

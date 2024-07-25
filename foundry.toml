@@ -3,4 +3,17 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+# Specify the Solidity compiler version
+solc-version = "0.8.20" # Update this to the version you're using
+
+# Enable optimizer and set the number of runs
+optimizer = true
+optimizer-runs = 200000
+
+# Optional: Additional settings for more control
+evm-version = "paris" # You can specify the EVM version if needed
+
+# Additional configuration options (uncomment and modify as needed)
+# via-ir = true # Use the IR-based optimizer
+# cache = true # Enable caching for faster recompilation
+# remappings = ["@openzeppelin=lib/openzeppelin-contracts/"] # Example remapping

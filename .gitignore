@@ -24,3 +24,6 @@ coverage_report
 test/~BinanceBridge.t.sol
 test/~BridgeIntegration.sol
 test/~RupayaBridge.t.sol
+
+*~
+script/*~
